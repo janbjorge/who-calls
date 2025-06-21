@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
 # requirements: networkx
-"""
-calltree_ast.py — static caller‑tree explorer (AST + NetworkX)
-==============================================================
+"""Static caller tree explorer.
 
-    python calltree_ast.py <function> [--root SRC] [--exclude REGEX]
-
-The script prints every *static* call‑path that can reach the requested
-function.  Paths are filtered with a user‑supplied regular expression
-(default skips `.git`, `.venv`, `.cache`, `tests`).
-
-Each node is formatted so editors can Ctrl‑click:
-
-    func_name @ path/to/file.py:LINE
-
-The leaf marked "<─ target" is the function you asked for.
+This module provides the core logic for building a static call graph for a
+Python project using :mod:`ast` and :mod:`networkx`.  It can then print every
+call path that reaches a requested function.  The printing format is compatible
+with most modern editors so that file references can be clicked.
 """
 
 from __future__ import annotations
@@ -23,6 +14,30 @@ import ast
 import pathlib
 import re
 import sys
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
+class CallGraph:
+    """Call graph with source metadata for each discovered function."""
+
+    graph: nx.DiGraph
+    src: dict[str, pathlib.Path]
+    lines: dict[str, int]
+
+    def filtered(self, pattern: re.Pattern[str]) -> "CallGraph":
+        """Return a new graph keeping only nodes matching ``pattern``."""
+        nodes = [n for n in self.graph if pattern.search(n)]
+        sub = self.graph.subgraph(nodes).copy()
+        src = {k: v for k, v in self.src.items() if k in nodes}
+        lines = {k: v for k, v in self.lines.items() if k in nodes}
+        return CallGraph(graph=sub, src=src, lines=lines)
+
+    def label(self, node: str) -> str:
+        """Return ``"func @ file:line"`` for ``node``."""
+        func = node.split(".")[-1]
+        file = self.src.get(node, pathlib.Path("?"))
+        return f"{func} @ {file.as_posix()}:{self.lines.get(node, 1)}"
 
 import networkx as nx
 
@@ -31,7 +46,9 @@ import networkx as nx
 # ─────────────────────────────────────────────────────────────
 
 
-def build_call_graph(root: pathlib.Path, rx_exclude: re.Pattern):
+def build_call_graph(root: pathlib.Path, rx_exclude: re.Pattern) -> CallGraph:
+    """Scan ``root`` and return a :class:`CallGraph` of all discovered calls."""
+
     graph = nx.DiGraph()
     defs: dict[str, ast.AST] = {}
     src_map: dict[str, pathlib.Path] = {}
@@ -97,23 +114,17 @@ def build_call_graph(root: pathlib.Path, rx_exclude: re.Pattern):
                 for callee in same_pkg or callee_candidates:
                     graph.add_edge(caller, callee)
 
-    return graph, src_map, line_map
-
+    return CallGraph(graph=graph, src=src_map, lines=line_map)
 
 # ─────────────────────────────────────────────────────────────
-#  Label & pretty print caller tree
+#  Pretty print caller tree
 # ─────────────────────────────────────────────────────────────
 
 
-def label(node: str, src: dict[str, pathlib.Path], line: dict[str, int]) -> str:
-    func = node.split(".")[-1]
-    file = src.get(node, pathlib.Path("?"))
-    return f"{func} @ {file.as_posix()}:{line.get(node, 1)}"
+def print_caller_tree(cgraph: CallGraph, target: str) -> None:
+    """Print all call paths in ``cgraph`` that reach ``target``."""
 
-
-def print_caller_tree(
-    graph: nx.DiGraph, src: dict[str, pathlib.Path], line: dict[str, int], target: str
-):
+    graph = cgraph.graph
     matches = [n for n in graph if n.endswith("." + target) or n == target]
     if not matches:
         sys.exit(f"✘ function '{target}' not found")
@@ -133,7 +144,7 @@ def print_caller_tree(
     def walk(node: str, prefix: str = "", last: bool = True):
         branch = "└── " if last else "├── "
         mark = "  <─ target" if node == tgt else ""
-        print(prefix + branch + label(node, src, line) + mark)
+        print(prefix + branch + cgraph.label(node) + mark)
         kids = sorted(c for c in graph.successors(node) if c in anc)
         for i, k in enumerate(kids):
             walk(k, prefix + ("    " if last else "│   "), i == len(kids) - 1)
