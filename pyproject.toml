@@ -7,7 +7,6 @@ requires-python = ">=3.11"
 
 dependencies = [
     "networkx>=3.0",
-    "pytest>=7.0",
 ]
 
 authors = [
