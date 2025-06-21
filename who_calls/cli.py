@@ -1,6 +1,7 @@
+"""Command line interface for ``who-calls``."""
+
 from __future__ import annotations
 
-"""Command line interface for ``who-calls``."""
 import argparse
 import re
 import pathlib
@@ -14,12 +15,22 @@ DEFAULT_EXCLUDE = re.compile(r"\.git|\.venv|\.cache|tests")
 #  Main
 # ─────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     """Entry point for the ``who-calls`` command line interface."""
 
-    ap = argparse.ArgumentParser(description="Static caller tree explorer")
-    ap.add_argument("function", help="target function name (or fully‑qualified)")
-    ap.add_argument("--root", default=".", help="source root directory")
+    ap = argparse.ArgumentParser(
+        description="Static caller tree explorer",
+    )
+    ap.add_argument(
+        "function",
+        help="target function name (or fully‑qualified)",
+    )
+    ap.add_argument(
+        "--root",
+        default=".",
+        help="source root directory",
+    )
     ap.add_argument(
         "--exclude",
         default=DEFAULT_EXCLUDE.pattern,

@@ -17,6 +17,9 @@ import sys
 from dataclasses import dataclass
 
 
+import networkx as nx
+
+
 @dataclass(slots=True)
 class CallGraph:
     """Call graph with source metadata for each discovered function."""
@@ -39,7 +42,6 @@ class CallGraph:
         file = self.src.get(node, pathlib.Path("?"))
         return f"{func} @ {file.as_posix()}:{self.lines.get(node, 1)}"
 
-import networkx as nx
 
 # ─────────────────────────────────────────────────────────────
 #  Build directed graph caller ──▶ callee
@@ -116,6 +118,7 @@ def build_call_graph(root: pathlib.Path, rx_exclude: re.Pattern) -> CallGraph:
 
     return CallGraph(graph=graph, src=src_map, lines=line_map)
 
+
 # ─────────────────────────────────────────────────────────────
 #  Pretty print caller tree
 # ─────────────────────────────────────────────────────────────
@@ -143,8 +146,7 @@ def print_caller_tree(cgraph: CallGraph, target: str) -> None:
 
     def walk(node: str, prefix: str = "", last: bool = True):
         branch = "└── " if last else "├── "
-        mark = "  <─ target" if node == tgt else ""
-        print(prefix + branch + cgraph.label(node) + mark)
+        print(prefix + branch + cgraph.label(node))
         kids = sorted(c for c in graph.successors(node) if c in anc)
         for i, k in enumerate(kids):
             walk(k, prefix + ("    " if last else "│   "), i == len(kids) - 1)
