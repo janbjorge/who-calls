@@ -162,6 +162,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "networkx" },
+    { name = "pytest" },
 ]
 
 [package.dev-dependencies]
@@ -172,7 +173,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "networkx", specifier = ">=3.0" }]
+requires-dist = [
+    { name = "networkx", specifier = ">=3.0" },
+    { name = "pytest", specifier = ">=7.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
