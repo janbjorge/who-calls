@@ -1,12 +1,6 @@
-# **who‑calls**
+# who-calls
 
-> *Who calls my function?* — A tiny static *caller‑tree* explorer for Python.
-
-`who‑calls` scans a project’s source code with the built‑in `ast` module,
-builds a directed call‑graph (`caller → callee`), and prints every
-call‑path that can reach a target function. Output is an ASCII tree whose
-nodes are **clickable file‑and‑line references** in most modern
-terminals and IDEs.
+A minimal utility for discovering which functions lead to a given symbol.  It scans Python source code using the standard `ast` module, builds a call graph with `networkx` and prints every path that reaches the target.  Each node is shown as `func @ path.py:LINE` so most editors can jump straight there.
 
 ```
 ├── main @ app/entry.py:28
@@ -16,103 +10,79 @@ terminals and IDEs.
     └── do_work @ app/worker.py:42  <─ target
 ```
 
----
+## Features
 
-## ✨ Features
+- Works purely via static analysis, so it is safe for untrusted code.
+- Labels are clickable in terminals that support file:line hyperlinks.
+- Unwanted files can be skipped with a regular expression (defaults to `.git`, `.venv`, `.cache`, `tests`).
+- Knows about `self.method()` and `cls.method()` calls inside classes.
+- Warns when a short name is ambiguous and accepts fully qualified targets.
 
-* **Static analysis** only – no code execution, so it’s safe to run on
-  untrusted repos or in CI.
-* **Clickable labels** – format `func @ path.py:LINE` so VS Code,
-  PyCharm, Zed, etc. jump straight to the definition.
-* **Regex‑based exclusion** – skip vendored or generated code
-  (`.git`, `.venv`, `.cache`, `tests` by default).
-* Detects `self.method()` / `cls.method()` calls inside classes.
-* Clear error on ambiguous target names; accepts fully‑qualified
-  `package.module:Class.method` style.
+## Requirements
 
----
+- Python 3.11+
+- `networkx` 3.x
 
-## 🚀 Installation (with UV)
+## Installation
+
+Using [uv](https://github.com/astral-sh/uv):
 
 ```bash
-uv pip install who‑calls
+uv pip install who-calls
 ```
 
-> **UV?** [uv](https://github.com/astral‑sh/uv) is a super‑fast drop‑in
-> replacement for *pip* + *virtualenv*. If you prefer stock tools, replace
-> `uv pip` with `pip`.
+Or with stock tools:
 
-### Dev / editable install
+```bash
+pip install who-calls
+```
+
+For development you can create a virtual environment and install the project in editable mode:
 
 ```bash
 uv venv .venv && source .venv/bin/activate
 uv pip install -e .[dev]
 ```
 
----
-
-## 🛠️ CLI usage
+## Command line usage
 
 ```bash
-who‑calls <function> [OPTIONS]
-
-Options:
-  --root DIR         Project root (default: current directory)
-  --exclude REGEX    Regex of paths to ignore (default: \\ .git | .venv | .cache | tests)
+who-calls <function> [--root DIR] [--exclude REGEX]
 ```
 
 Examples:
 
 ```bash
-# show who can reach do_work()
-who‑calls do_work
+# all callers of do_work()
+who-calls do_work
 
-# fully‑qualified target
-who‑calls app.worker.do_work
+# specify the fully qualified symbol
+who-calls app.worker.do_work
 
-# scan ./src and ignore build folder
-who‑calls process_order --root src --exclude "build|dist"
+# look only under ./src and ignore build outputs
+who-calls process_order --root src --exclude "build|dist"
 ```
 
-If the short name matches multiple symbols you’ll get:
+If several symbols match the given name you will see a list of choices and must supply the full dotted path.
+
+## How it works
+
+1. Recursively collect every `*.py` file under `--root`, skipping files that match `--exclude`.
+2. Parse the files with `ast.parse` and record every function and method with its module path and line number.
+3. Inspect call sites to link callers to callees.  Attribute calls on `self` or `cls` resolve to methods on the same class; other attributes fall back to a global match if unique.
+4. Build a directed graph from caller to callee with `networkx`.
+5. Reverse the graph and print only the ancestors that can reach the selected function.
+
+## Project layout
 
 ```
-⚠ Ambiguous function name. Matches:
-  • app.utils.filters:create_filter
-  • app.api.v1.picking_filters.queries:create_filter
-Please specify full path like <module>.<func> or <module>.<Class>.<method>.
-```
-
----
-
-## 🔍 How it works (high‑level)
-
-1. Recursively collect `*.py` files below `--root`, apply `--exclude`.
-2. Parse each file with `ast.parse`.
-3. Record every `FunctionDef` / `AsyncFunctionDef` with a fully‑qualified
-   dotted name (`pkg.mod.Class.func`).
-4. Discover call edges:
-
-   * `foo()` → unique match by name.
-   * `self.foo()` / `cls.foo()` → method on same class.
-   * `obj.foo()` → falls back to unique global match.
-5. Build a `networkx.DiGraph`, reverse it, keep only ancestors that can
-   reach the target, then pretty‑print.
-
----
-
-## 📦 Project structure
-
-```
-who‑calls/
-├── pyproject.toml          # uv build backend
+who-calls/
+├── pyproject.toml
 └── who_calls/
-    ├── __init__.py         # exposes who_calls.main
-    └── cli.py              # core logic (ast + networkx)
+    ├── who_calls.py
+    └── cli.py
 ```
 
----
+## License
 
-## 🖋️ License
-
-MIT © 2025  *janbjorge*
+MIT © 2025 janbjorge
